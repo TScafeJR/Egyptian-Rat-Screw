@@ -1,16 +1,15 @@
-"use strict";
+'use strict';
 
-var path = require('path');
-var morgan = require('morgan');
-var path = require('path');
-var express = require('express');
-var exphbs  = require('express-handlebars');
-var cookieParser = require('cookie-parser');
-var bodyParser = require('body-parser');
-var app = express();
-var http = require('http').Server(app);
-var io = require('socket.io')(http);
-var _ = require('underscore');
+import path from 'path';
+import express from 'express';
+import exphbs from 'express-handlebars';
+import cookieParser from 'cookie-parser';
+import bodyParser from 'body-parser';
+import Game from './game/classes/game';
+
+const app = express();
+const http = require('http').Server(app);
+const io = require('socket.io')(http);
 
 app.engine('hbs', exphbs({
   extname: 'hbs',
@@ -19,119 +18,114 @@ app.engine('hbs', exphbs({
 app.set('view engine', 'hbs');
 
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(bodyParser.urlencoded({extended: true}));
+app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(cookieParser());
-app.use(morgan('tiny'));
 
-app.get('/', function(req, res) {
-  res.render('index');
-});
+app.get('/', (req, res) => { res.render('index'); });
 
-// Here is your new Game!
-var Card = require('./card');
-var Player = require('./player');
-var Game = require('./game');
-var game = new Game();
-var count = 0; // Number of active socket connections
-var winner = null; // Username of winner
+let game = new Game();
+let activeSocketConnections = 0;
+let winner = null;
 
-function getGameState() {
-  var currentPlayerUsername;
-  var players = "";
-  var numCards = {};
+const getGameState = () => {
+  let currentPlayerUsername;
+  const numCards = {};
 
-  for (var id in game.players) {
-    numCards[id] = game.players[id].pile.length
-  }
-  //
+  game.getPlayers().forEach(player => {
+    numCards[player.username] = player.getHandSize();
+  });
+
   if (!game.isStarted) {
-    currentPlayerUsername = 'Game has not started yet dude'
+    currentPlayerUsername = 'Game has not started yet.';
   } else {
-    for (var id in game.players) {
-      if (game.players.id === game.playerOrder[0].id)
-      currentPlayerUsername = game.players[id].username
-    }
+    currentPlayerUsername = game.getCurrentPlayerUsername();
   }
 
-var playersInGame = game.playerOrder.join(', ')
-
-
-  // return an object with 6 different properties
   return {
     isStarted: game.isStarted,
     numCards: numCards,
     currentPlayerUsername: currentPlayerUsername,
-    playersInGame: playersInGame,
-    cardsInDeck: game.pile.length,
+    playersInGame: game.playerUsernamesToString(),
+    cardsInDeck: game.getDeckLength(),
     win: winner || undefined
+  };
+};
 
-  }
-}
-
-io.on('connection', function(socket) {
-
+io.on('connection', socket => {
   if (game.isStarted) {
-    // whenever a player joins an already started game, he or she becomes
-    // an observer automatically
     socket.emit('observeOnly');
   }
-  count++;
-  socket.on('disconnect', function () {
-    count--;
-    if (count === 0) {
+
+  activeSocketConnections++;
+
+  socket.on('disconnect', () => {
+    activeSocketConnections--;
+    if (activeSocketConnections === 0) {
       game = new Game();
       winner = null;
     }
   });
 
-  socket.on('username', function(data) {
+  socket.on('username', data => {
+    let player;
     if (winner) {
       socket.emit('errorMessage', `${winner} has won the game. Restart the server to start a new game.`);
-      return;
-    }else {
-      try {  var player = game.addPlayer(data);
-      }
-      catch(e){
+    } else {
+      try {
+        player = game.addPlayer(data);
+      } catch (e) {
+        console.error(JSON.stringify(e, null, 2));
         socket.emit('errorMessage', e.message);
       }
-      socket.playerId = player;
-      socket.emit('username', {id: player, username: data});
-      io.emit('updateGame', getGameState())
+
+      socket.username = player.username;
+      socket.emit('username', player.username);
+      io.emit('updateGame', getGameState());
     }
   });
 
-  socket.on('start', function() {
+  socket.on('start', () => {
     if (winner) {
       socket.emit('errorMessage', `${winner} has won the game. Restart the server to start a new game.`);
-      return;
     } else {
-      if(!socket.playerId) {
-        throw "you are not a player of the game brah"
+      if (!socket.username) {
+        throw {
+          message: 'You are not a player of the game.'
+        };
       }
-      try {game.startGame()}
-      catch(e) {
+
+      try {
+        game.startGame();
+      } catch (e) {
+        console.log(JSON.stringify(e, null, 2));
         socket.emit('errorMessage', e.message);
       }
-      io.emit('start')
-      io.emit('updateGame', getGameState())
+      io.emit('start');
+      io.emit('updateGame', getGameState());
     }
   });
 
-  socket.on('playCard', function() {
+  socket.on('playCard', () => {
     if (winner) {
       socket.emit('errorMessage', `${winner} has won the game. Restart the server to start a new game.`);
       return;
-    } if(!socket.playerId) {
-      throw "you are not a player of the game brah"
+    }
+
+    if (!socket.username) {
+      throw {
+        message: 'You are not a player of the game.'
+      };
     } else {
-      try { 
-        var move = game.playCard(socket.playerId);
+      try {
+        const move = game.playCard(socket.playerId);
         io.emit('playCard', move);
+      } catch (e) {
+        console.log(JSON.stringify(e), 2);
+        socket.emit('errorMessage', e.message);
       }
-      catch(e){socket.emit('errorMessage', e.message);}
-      
     }
+
 
     // broadcast to everyone the game state
     io.emit('updateGame', getGameState());
@@ -143,38 +137,39 @@ io.on('connection', function(socket) {
       return;
     }
     if (!socket.playerId) {
-      socket.emit('errorMessage', 'You are not a player of the game')
+      socket.emit('errorMessage', 'You are not a player of the game');
     } else {
       try {
-        var slapject = game.slap(socket.playerId);
-        if (slapject.winning) { //Check if the slapper got the 52 cards and won
-          winner = socket.username
-          //game.isStarted = false
-          // why not that? because we already set it in the slap function
+        const slapject = game.slap(socket.playerId);
+        if (slapject.winning) {
+          winner = socket.username;
         }
-        if (slapject.message === 'got the pile!') //Check if the slapper was right
-        io.emit('clearDeck')
-        if (!game.players[socket.playerId].pile.length) { //Check if slapper has no cards anymore
-          var active = game.numActivePlayers()
-          if (active.length === 1) {  //If there is only one active player
-            winner = active[0];  //Then he won
+
+        if (slapject.message.includes('got the pile!')) {
+          io.emit('clearDeck');
+        }
+
+        if (!game.players[socket.playerId].pile.length) {
+          const active = game.numActivePlayers();
+          if (active.length === 1) { //If there is only one active player
+            winner = active[0]; //Then he won
             game.isStarted = false; //Game is over
           } else {
-            game.nextPlayer()
+            game.nextPlayer();
           }
         }
-        io.emit('updateGame', getGameState())
-        socket.emit('message', 'You ' + slapject.message)
-        socket.broadcast.emit('message', game.players[socket.playerId].username + ' ' + slapject.message)
-      }
-      catch (e) {
-        socket.emit('errorMessage', e.message)
+
+        io.emit('updateGame', getGameState());
+        socket.emit('message', slapject.message);
+        socket.broadcast.emit('message', game.players[socket.username].username + ' ' + slapject.message);
+      } catch (e) {
+        console.log(JSON.stringify(e), 1);
+        socket.emit('errorMessage', e.message);
       }
     }
   });
-})
+});
 
-  var port = process.env.PORT || 3000;
-  http.listen(port, function(){
-    console.log('Express started. Listening on %s', port);
-  });
+http.listen(process.env.PORT || 3000, () => {
+  console.log(`Express started. Listening on ${process.env.PORT || 3000}`);
+});

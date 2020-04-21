@@ -1,0 +1,19 @@
+toc:
+  - name: Egyptian Rat Screw
+    children:
+      - name: Data Structures
+        children:
+          - CircularLinkedList
+          - LinkedList
+          - Node
+      - name: Rules
+        children:
+          - Card
+          - CardCollection
+          - Deck
+          - Dealer
+          - Game
+          - Player
+          - PlayerCollection
+          - Rules
+

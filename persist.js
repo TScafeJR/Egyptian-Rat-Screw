@@ -1,5 +1,5 @@
-var fs = require('fs');
-var STORE = './store.json'
+const fs = require('fs');
+const STORE = './store.json';
 
 module.exports = {
   write: function(persist) {
@@ -11,4 +11,4 @@ module.exports = {
   hasExisting: function() {
     return fs.existsSync(STORE);
   }
-}
+};
