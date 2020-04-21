@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "app.js",
   "scripts": {
+    "audit": "npm audit --audit-level=high --registry=https://registry.npmjs.org",
     "docs": "documentation build --config documentation.yml ./*.js -f html -o docs --version=True;",
     "lint": "eslint './*.js' './**/*.js' './**/**/*.js' ",
     "lint:fix": "eslint --fix './*.js' './game/**/*.js'",
@@ -17,7 +18,7 @@
     "express-session": "^1.13.0",
     "jasmine": "^2.4.1",
     "morgan": "^1.9.1",
-    "socket.io": "^1.4.8",
+    "socket.io": "^2.3.0",
     "underscore": "^1.8.3"
   },
   "devDependencies": {
