@@ -19,7 +19,7 @@
     "jasmine": "^2.4.1",
     "morgan": "^1.9.1",
     "socket.io": "^2.3.0",
-    "underscore": "^1.8.3"
+    "underscore": "^1.12.1"
   },
   "devDependencies": {
     "@tscafejr/eslint-config-scafejr": "^1.1.0",
